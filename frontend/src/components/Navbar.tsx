@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom'
 import { Button } from './ui/button'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
-import { injected } from 'wagmi/connectors'
 
 export function Navbar() {
     const { address, isConnected } = useAccount()
-    const { connect } = useConnect()
+    const { connectors, connect } = useConnect()
     const { disconnect } = useDisconnect()
 
     return (
@@ -14,7 +13,9 @@ export function Navbar() {
                 <Link to="/" className="text-xl font-bold">InvoiceMarket</Link>
                 <div className="flex gap-4">
                     <Link to="/marketplace" className="hover:underline">Marketplace</Link>
+                    <Link to="/secondary" className="hover:underline text-muted-foreground">Secondary</Link>
                     <Link to="/create" className="hover:underline">Create Invoice</Link>
+                    <Link to="/buyer" className="hover:underline text-muted-foreground">Buyer Portal</Link>
                     <Link to="/dashboard" className="hover:underline">Dashboard</Link>
                 </div>
             </div>
@@ -27,7 +28,13 @@ export function Navbar() {
                         <Button variant="outline" onClick={() => disconnect()}>Disconnect</Button>
                     </div>
                 ) : (
-                    <Button onClick={() => connect({ connector: injected() })}>Connect Wallet</Button>
+                    <div className="flex gap-2">
+                        {connectors.map((connector) => (
+                            <Button key={connector.uid} onClick={() => connect({ connector })}>
+                                {connector.name === 'Mock' ? 'Simulate Wallet' : 'Connect Wallet'}
+                            </Button>
+                        ))}
+                    </div>
                 )}
             </div>
         </nav>

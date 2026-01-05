@@ -7,6 +7,9 @@ import { Home } from './pages/Home'
 import { CreateInvoice } from './pages/CreateInvoice'
 import { Marketplace } from './pages/Marketplace'
 import { Dashboard } from './pages/Dashboard'
+import { BuyerPortal } from './pages/BuyerPortal'
+import { SecondaryMarket } from './pages/SecondaryMarket'
+
 
 const queryClient = new QueryClient()
 
@@ -23,6 +26,8 @@ function App() {
                 <Route path="/create" element={<CreateInvoice />} />
                 <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/buyer" element={<BuyerPortal />} />
+                <Route path="/secondary" element={<SecondaryMarket />} />
               </Routes>
             </main>
           </div>
