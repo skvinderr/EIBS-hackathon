@@ -28,13 +28,9 @@ export function Navbar() {
                         <Button variant="outline" onClick={() => disconnect()}>Disconnect</Button>
                     </div>
                 ) : (
-                    <div className="flex gap-2">
-                        {connectors.map((connector) => (
-                            <Button key={connector.uid} onClick={() => connect({ connector })}>
-                                {connector.name === 'Mock' ? 'Simulate Wallet' : 'Connect Wallet'}
-                            </Button>
-                        ))}
-                    </div>
+                    <Button onClick={() => connect({ connector: connectors[0] })}>
+                        Connect Wallet
+                    </Button>
                 )}
             </div>
         </nav>
