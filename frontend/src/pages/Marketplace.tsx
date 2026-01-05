@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Search, Filter, TrendingUp, Clock, DollarSign, ArrowUpRight } from 'lucide-react'
+import { Search, Filter, TrendingUp, Clock, ArrowUpRight } from 'lucide-react'
 
 // Mock Data for Marketplace
 const MOCK_INVOICES = [

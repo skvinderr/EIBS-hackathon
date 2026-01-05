@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ShieldCheck, Zap, Globe, ChevronRight, PlayCircle, Star } from 'lucide-react'
+import { ArrowRight, ShieldCheck, Zap, Globe, PlayCircle, Star } from 'lucide-react'
 
 export function Home() {
     return (
