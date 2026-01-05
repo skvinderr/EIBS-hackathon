@@ -23,10 +23,37 @@ import type {
   TypedContractMethod,
 } from "../common";
 
+export declare namespace Marketplace {
+  export type ListingStruct = {
+    seller: AddressLike;
+    goalAmount: BigNumberish;
+    currentAmount: BigNumberish;
+    returnAmount: BigNumberish;
+    state: BigNumberish;
+  };
+
+  export type ListingStructOutput = [
+    seller: string,
+    goalAmount: bigint,
+    currentAmount: bigint,
+    returnAmount: bigint,
+    state: bigint
+  ] & {
+    seller: string;
+    goalAmount: bigint;
+    currentAmount: bigint;
+    returnAmount: bigint;
+    state: bigint;
+  };
+}
+
 export interface MarketplaceInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "claimReturns"
       | "fundInvoice"
+      | "getListing"
+      | "investments"
       | "invoiceNFT"
       | "listInvoice"
       | "listings"
@@ -34,12 +61,24 @@ export interface MarketplaceInterface extends Interface {
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "Funded" | "Listed" | "Repaid"
+    nameOrSignatureOrTopic: "Claimed" | "Funded" | "Listed" | "Repaid"
   ): EventFragment;
 
   encodeFunctionData(
+    functionFragment: "claimReturns",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "fundInvoice",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getListing",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "investments",
+    values: [BigNumberish, AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "invoiceNFT",
@@ -47,7 +86,7 @@ export interface MarketplaceInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "listInvoice",
-    values: [BigNumberish, BigNumberish]
+    values: [BigNumberish, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "listings",
@@ -59,7 +98,16 @@ export interface MarketplaceInterface extends Interface {
   ): string;
 
   decodeFunctionResult(
+    functionFragment: "claimReturns",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "fundInvoice",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "getListing", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "investments",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "invoiceNFT", data: BytesLike): Result;
@@ -74,17 +122,35 @@ export interface MarketplaceInterface extends Interface {
   ): Result;
 }
 
+export namespace ClaimedEvent {
+  export type InputTuple = [
+    tokenId: BigNumberish,
+    investor: AddressLike,
+    amount: BigNumberish
+  ];
+  export type OutputTuple = [tokenId: bigint, investor: string, amount: bigint];
+  export interface OutputObject {
+    tokenId: bigint;
+    investor: string;
+    amount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export namespace FundedEvent {
   export type InputTuple = [
     tokenId: BigNumberish,
     investor: AddressLike,
-    price: BigNumberish
+    amount: BigNumberish
   ];
-  export type OutputTuple = [tokenId: bigint, investor: string, price: bigint];
+  export type OutputTuple = [tokenId: bigint, investor: string, amount: bigint];
   export interface OutputObject {
     tokenId: bigint;
     investor: string;
-    price: bigint;
+    amount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -96,13 +162,20 @@ export namespace ListedEvent {
   export type InputTuple = [
     tokenId: BigNumberish,
     seller: AddressLike,
-    price: BigNumberish
+    goalAmount: BigNumberish,
+    returnAmount: BigNumberish
   ];
-  export type OutputTuple = [tokenId: bigint, seller: string, price: bigint];
+  export type OutputTuple = [
+    tokenId: bigint,
+    seller: string,
+    goalAmount: bigint,
+    returnAmount: bigint
+  ];
   export interface OutputObject {
     tokenId: bigint;
     seller: string;
-    price: bigint;
+    goalAmount: bigint;
+    returnAmount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -111,15 +184,10 @@ export namespace ListedEvent {
 }
 
 export namespace RepaidEvent {
-  export type InputTuple = [
-    tokenId: BigNumberish,
-    borrower: AddressLike,
-    amount: BigNumberish
-  ];
-  export type OutputTuple = [tokenId: bigint, borrower: string, amount: bigint];
+  export type InputTuple = [tokenId: BigNumberish, amount: BigNumberish];
+  export type OutputTuple = [tokenId: bigint, amount: bigint];
   export interface OutputObject {
     tokenId: bigint;
-    borrower: string;
     amount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
@@ -171,12 +239,34 @@ export interface Marketplace extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  claimReturns: TypedContractMethod<
+    [tokenId: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
   fundInvoice: TypedContractMethod<[tokenId: BigNumberish], [void], "payable">;
+
+  getListing: TypedContractMethod<
+    [tokenId: BigNumberish],
+    [Marketplace.ListingStructOutput],
+    "view"
+  >;
+
+  investments: TypedContractMethod<
+    [arg0: BigNumberish, arg1: AddressLike],
+    [bigint],
+    "view"
+  >;
 
   invoiceNFT: TypedContractMethod<[], [string], "view">;
 
   listInvoice: TypedContractMethod<
-    [tokenId: BigNumberish, price: BigNumberish],
+    [
+      tokenId: BigNumberish,
+      goalAmount: BigNumberish,
+      returnAmount: BigNumberish
+    ],
     [void],
     "nonpayable"
   >;
@@ -184,11 +274,12 @@ export interface Marketplace extends BaseContract {
   listings: TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [bigint, string, bigint, boolean] & {
-        tokenId: bigint;
+      [string, bigint, bigint, bigint, bigint] & {
         seller: string;
-        price: bigint;
-        active: boolean;
+        goalAmount: bigint;
+        currentAmount: bigint;
+        returnAmount: bigint;
+        state: bigint;
       }
     ],
     "view"
@@ -201,15 +292,36 @@ export interface Marketplace extends BaseContract {
   ): T;
 
   getFunction(
+    nameOrSignature: "claimReturns"
+  ): TypedContractMethod<[tokenId: BigNumberish], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "fundInvoice"
   ): TypedContractMethod<[tokenId: BigNumberish], [void], "payable">;
+  getFunction(
+    nameOrSignature: "getListing"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish],
+    [Marketplace.ListingStructOutput],
+    "view"
+  >;
+  getFunction(
+    nameOrSignature: "investments"
+  ): TypedContractMethod<
+    [arg0: BigNumberish, arg1: AddressLike],
+    [bigint],
+    "view"
+  >;
   getFunction(
     nameOrSignature: "invoiceNFT"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "listInvoice"
   ): TypedContractMethod<
-    [tokenId: BigNumberish, price: BigNumberish],
+    [
+      tokenId: BigNumberish,
+      goalAmount: BigNumberish,
+      returnAmount: BigNumberish
+    ],
     [void],
     "nonpayable"
   >;
@@ -218,11 +330,12 @@ export interface Marketplace extends BaseContract {
   ): TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [bigint, string, bigint, boolean] & {
-        tokenId: bigint;
+      [string, bigint, bigint, bigint, bigint] & {
         seller: string;
-        price: bigint;
-        active: boolean;
+        goalAmount: bigint;
+        currentAmount: bigint;
+        returnAmount: bigint;
+        state: bigint;
       }
     ],
     "view"
@@ -231,6 +344,13 @@ export interface Marketplace extends BaseContract {
     nameOrSignature: "repayInvoice"
   ): TypedContractMethod<[tokenId: BigNumberish], [void], "payable">;
 
+  getEvent(
+    key: "Claimed"
+  ): TypedContractEvent<
+    ClaimedEvent.InputTuple,
+    ClaimedEvent.OutputTuple,
+    ClaimedEvent.OutputObject
+  >;
   getEvent(
     key: "Funded"
   ): TypedContractEvent<
@@ -254,6 +374,17 @@ export interface Marketplace extends BaseContract {
   >;
 
   filters: {
+    "Claimed(uint256,address,uint256)": TypedContractEvent<
+      ClaimedEvent.InputTuple,
+      ClaimedEvent.OutputTuple,
+      ClaimedEvent.OutputObject
+    >;
+    Claimed: TypedContractEvent<
+      ClaimedEvent.InputTuple,
+      ClaimedEvent.OutputTuple,
+      ClaimedEvent.OutputObject
+    >;
+
     "Funded(uint256,address,uint256)": TypedContractEvent<
       FundedEvent.InputTuple,
       FundedEvent.OutputTuple,
@@ -265,7 +396,7 @@ export interface Marketplace extends BaseContract {
       FundedEvent.OutputObject
     >;
 
-    "Listed(uint256,address,uint256)": TypedContractEvent<
+    "Listed(uint256,address,uint256,uint256)": TypedContractEvent<
       ListedEvent.InputTuple,
       ListedEvent.OutputTuple,
       ListedEvent.OutputObject
@@ -276,7 +407,7 @@ export interface Marketplace extends BaseContract {
       ListedEvent.OutputObject
     >;
 
-    "Repaid(uint256,address,uint256)": TypedContractEvent<
+    "Repaid(uint256,uint256)": TypedContractEvent<
       RepaidEvent.InputTuple,
       RepaidEvent.OutputTuple,
       RepaidEvent.OutputObject

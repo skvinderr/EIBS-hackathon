@@ -764,8 +764,8 @@
       ]
     },
     "C:\\Users\\sciad\\EIBS\\smart-contracts\\contracts\\Marketplace.sol": {
-      "lastModificationDate": 1767631381969,
-      "contentHash": "ff502e95583660089f24a41482829469",
+      "lastModificationDate": 1767633304259,
+      "contentHash": "97cc4de0aab82a9824341963bd4e0a30",
       "sourceName": "contracts/Marketplace.sol",
       "solcConfig": {
         "version": "0.8.24",

@@ -4,7 +4,7 @@ import { ethers } from "hardhat";
 
 describe("Marketplace", function () {
     async function deployMarketplaceFixture() {
-        const [owner, otherAccount, investor] = await ethers.getSigners();
+        const [owner, otherAccount, investor1, investor2] = await ethers.getSigners();
 
         const InvoiceNFT = await ethers.getContractFactory("InvoiceNFT");
         const invoiceNFT = await InvoiceNFT.deploy();
@@ -12,53 +12,66 @@ describe("Marketplace", function () {
         const Marketplace = await ethers.getContractFactory("Marketplace");
         const marketplace = await Marketplace.deploy(await invoiceNFT.getAddress());
 
-        return { invoiceNFT, marketplace, owner, otherAccount, investor };
+        return { invoiceNFT, marketplace, owner, otherAccount, investor1, investor2 };
     }
 
-    describe("Deployment", function () {
-        it("Should set the right owner", async function () {
-            const { invoiceNFT, owner } = await loadFixture(deployMarketplaceFixture);
-            expect(await invoiceNFT.owner()).to.equal(owner.address);
-        });
-    });
+    describe("Crowdfunding Flow", function () {
+        it("Should execute full flow: List -> Fund -> Repay -> Claim", async function () {
+            const { invoiceNFT, marketplace, owner, investor1, investor2 } = await loadFixture(deployMarketplaceFixture);
 
-    describe("Minting and Listing", function () {
-        it("Should mint and list an invoice", async function () {
-            const { invoiceNFT, marketplace, owner } = await loadFixture(deployMarketplaceFixture);
-
-            const amount = ethers.parseEther("1");
-            const dueDate = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-
-            await invoiceNFT.mintInvoice(owner.address, "uri", amount, dueDate);
-            const tokenId = 0;
-
-            await invoiceNFT.approve(await marketplace.getAddress(), tokenId);
-            await marketplace.listInvoice(tokenId, amount);
-
-            const listing = await marketplace.listings(tokenId);
-            expect(listing.price).to.equal(amount);
-            expect(listing.active).to.be.true;
-        });
-    });
-
-    describe("Funding", function () {
-        it("Should fund an invoice", async function () {
-            const { invoiceNFT, marketplace, owner, investor } = await loadFixture(deployMarketplaceFixture);
-
-            const amount = ethers.parseEther("1");
+            const faceValue = ethers.parseEther("1.0");
+            const goalAmount = ethers.parseEther("0.85"); // 85% advance
+            const returnAmount = ethers.parseEther("1.0"); // Repay full face value
             const dueDate = Math.floor(Date.now() / 1000) + 3600;
 
-            await invoiceNFT.mintInvoice(owner.address, "uri", amount, dueDate);
+            // 1. Mint
+            await invoiceNFT.mintInvoice(owner.address, "uri", faceValue, dueDate);
             const tokenId = 0;
 
+            // 2. List
             await invoiceNFT.approve(await marketplace.getAddress(), tokenId);
-            await marketplace.listInvoice(tokenId, amount);
+            await marketplace.listInvoice(tokenId, goalAmount, returnAmount);
 
-            await marketplace.connect(investor).fundInvoice(tokenId, { value: amount });
-
-            expect(await invoiceNFT.ownerOf(tokenId)).to.equal(investor.address);
             const listing = await marketplace.listings(tokenId);
-            expect(listing.active).to.be.false;
+            expect(listing.goalAmount).to.equal(goalAmount);
+            expect(listing.state).to.equal(0); // Active
+            expect(await invoiceNFT.ownerOf(tokenId)).to.equal(await marketplace.getAddress()); // NFT locked
+
+            // 3. Partial Fund (Investor 1)
+            const contribution1 = ethers.parseEther("0.5");
+            await marketplace.connect(investor1).fundInvoice(tokenId, { value: contribution1 });
+
+            expect((await marketplace.listings(tokenId)).currentAmount).to.equal(contribution1);
+
+            // 4. Complete Fund (Investor 2)
+            const contribution2 = ethers.parseEther("0.35");
+            // Check seller balance change
+            await expect(
+                marketplace.connect(investor2).fundInvoice(tokenId, { value: contribution2 })
+            ).to.changeEtherBalance(owner, goalAmount); // Seller receives total raised
+
+            expect((await marketplace.listings(tokenId)).state).to.equal(1); // Funded
+
+            // 5. Repay
+            await expect(
+                marketplace.repayInvoice(tokenId, { value: returnAmount })
+            ).to.changeEtherBalance(marketplace, returnAmount); // Contract holds repayment
+
+            expect((await marketplace.listings(tokenId)).state).to.equal(2); // Repaid
+            expect(await invoiceNFT.ownerOf(tokenId)).to.equal(owner.address); // NFT returned
+
+            // 6. Claim (Investor 1)
+            // Share = (0.5 / 0.85) * 1.0 = 0.588235... ETH
+            const expectedShare1 = (contribution1 * returnAmount) / goalAmount;
+            await expect(
+                marketplace.connect(investor1).claimReturns(tokenId)
+            ).to.changeEtherBalance(investor1, expectedShare1);
+
+            // 7. Claim (Investor 2)
+            const expectedShare2 = (contribution2 * returnAmount) / goalAmount;
+            await expect(
+                marketplace.connect(investor2).claimReturns(tokenId)
+            ).to.changeEtherBalance(investor2, expectedShare2);
         });
     });
 });

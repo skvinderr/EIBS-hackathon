@@ -6,66 +6,104 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./InvoiceNFT.sol";
 
 contract Marketplace is ReentrancyGuard {
+    enum ListingState { Active, Funded, Repaid }
+
     struct Listing {
-        uint256 tokenId;
         address seller;
-        uint256 price;
-        bool active;
+        uint256 goalAmount;     // Amount to raise (e.g. 85% of face value)
+        uint256 currentAmount;  // Amount raised so far
+        uint256 returnAmount;   // Amount to be repaid (e.g. 100% face value)
+        ListingState state;
     }
 
     InvoiceNFT public invoiceNFT;
     mapping(uint256 => Listing) public listings;
+    mapping(uint256 => mapping(address => uint256)) public investments; // tokenId -> investor -> amount
 
-    event Listed(uint256 indexed tokenId, address indexed seller, uint256 price);
-    event Funded(uint256 indexed tokenId, address indexed investor, uint256 price);
-    event Repaid(uint256 indexed tokenId, address indexed borrower, uint256 amount);
+    event Listed(uint256 indexed tokenId, address indexed seller, uint256 goalAmount, uint256 returnAmount);
+    event Funded(uint256 indexed tokenId, address indexed investor, uint256 amount);
+    event Repaid(uint256 indexed tokenId, uint256 amount);
+    event Claimed(uint256 indexed tokenId, address indexed investor, uint256 amount);
 
     constructor(address _invoiceNFT) {
         invoiceNFT = InvoiceNFT(_invoiceNFT);
     }
 
-    function listInvoice(uint256 tokenId, uint256 price) external {
+    function listInvoice(uint256 tokenId, uint256 goalAmount, uint256 returnAmount) external {
         require(invoiceNFT.ownerOf(tokenId) == msg.sender, "Not owner");
-        require(invoiceNFT.getApproved(tokenId) == address(this) || invoiceNFT.isApprovedForAll(msg.sender, address(this)), "Not approved");
+        require(
+            invoiceNFT.getApproved(tokenId) == address(this) || 
+            invoiceNFT.isApprovedForAll(msg.sender, address(this)), 
+            "Not approved"
+        );
+        require(goalAmount > 0 && returnAmount >= goalAmount, "Invalid amounts");
+
+        // Transfer NFT to marketplace to lock it during funding/repayment
+        invoiceNFT.transferFrom(msg.sender, address(this), tokenId);
 
         listings[tokenId] = Listing({
-            tokenId: tokenId,
             seller: msg.sender,
-            price: price,
-            active: true
+            goalAmount: goalAmount,
+            currentAmount: 0,
+            returnAmount: returnAmount,
+            state: ListingState.Active
         });
 
-        emit Listed(tokenId, msg.sender, price);
+        emit Listed(tokenId, msg.sender, goalAmount, returnAmount);
     }
 
     function fundInvoice(uint256 tokenId) external payable nonReentrant {
         Listing storage listing = listings[tokenId];
-        require(listing.active, "Not active");
-        require(msg.value >= listing.price, "Insufficient funds");
+        require(listing.state == ListingState.Active, "Not active");
+        require(listing.currentAmount + msg.value <= listing.goalAmount, "Overfunded");
+        require(msg.value > 0, "Amount must be > 0");
 
-        listing.active = false;
-        
-        // Transfer funds to seller (borrower)
-        payable(listing.seller).transfer(listing.price);
+        investments[tokenId][msg.sender] += msg.value;
+        listing.currentAmount += msg.value;
 
-        // Transfer NFT to investor
-        invoiceNFT.transferFrom(listing.seller, msg.sender, tokenId);
+        emit Funded(tokenId, msg.sender, msg.value);
 
-        emit Funded(tokenId, msg.sender, listing.price);
+        if (listing.currentAmount == listing.goalAmount) {
+            listing.state = ListingState.Funded;
+            // Transfer raised funds to seller
+            payable(listing.seller).transfer(listing.currentAmount);
+        }
     }
 
     function repayInvoice(uint256 tokenId) external payable nonReentrant {
-        // Borrower repays the invoice amount + interest (simplified here as just repaying to current owner)
-        address currentOwner = invoiceNFT.ownerOf(tokenId);
-        
-        // Transfer repayment to current owner (investor)
-        payable(currentOwner).transfer(msg.value);
-        
-        // Mark invoice as paid in NFT contract
-        // Note: Marketplace needs to be authorized or owner of NFT contract to call this if restricted
-        // For now, assuming InvoiceNFT allows it or we handle it differently
-        // invoiceNFT.markPaid(tokenId); 
+        Listing storage listing = listings[tokenId];
+        require(listing.state == ListingState.Funded, "Not funded");
+        require(msg.value == listing.returnAmount, "Incorrect repayment amount");
 
-        emit Repaid(tokenId, msg.sender, msg.value);
+        listing.state = ListingState.Repaid;
+        
+        // Return NFT to seller as the invoice is settled
+        invoiceNFT.transferFrom(address(this), listing.seller, tokenId);
+        
+        // Mark as paid in NFT contract (optional, for metadata consistency)
+        try invoiceNFT.markPaid(tokenId) {} catch {}
+
+        emit Repaid(tokenId, msg.value);
+    }
+
+    function claimReturns(uint256 tokenId) external nonReentrant {
+        Listing storage listing = listings[tokenId];
+        require(listing.state == ListingState.Repaid, "Not repaid");
+        
+        uint256 invested = investments[tokenId][msg.sender];
+        require(invested > 0, "No investment found");
+
+        investments[tokenId][msg.sender] = 0; // Prevent re-entrancy
+
+        // Calculate share: (invested / goalAmount) * returnAmount
+        uint256 share = (invested * listing.returnAmount) / listing.goalAmount;
+
+        payable(msg.sender).transfer(share);
+        emit Claimed(tokenId, msg.sender, share);
+    }
+    
+    // Helper to get listing details
+    function getListing(uint256 tokenId) external view returns (Listing memory) {
+        return listings[tokenId];
     }
 }
