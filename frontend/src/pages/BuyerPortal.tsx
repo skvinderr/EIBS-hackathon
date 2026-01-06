@@ -24,7 +24,7 @@ export function BuyerPortal() {
     }
 
     return (
-        <div className="container mx-auto px-4 py-8 space-y-8">
+        <div className="container mx-auto px-4 py-24 space-y-8">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold">Buyer Portal</h1>
